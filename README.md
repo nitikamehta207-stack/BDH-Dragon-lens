@@ -34,8 +34,8 @@ Manim Animation (manim_animation / dashboard/animations)
 
 ```bash
 # 1. Clone this repo and enter it
-git clone <this-repo-url>
-cd bdh
+git clone https://github.com/nitikamehta207-stack/BDH-Dragon-lens.git
+cd BDH-Dragon-lens
 
 # 2. Install dependencies
 pip install -r requirements.txt
@@ -95,7 +95,10 @@ This pattern was consistent across all 6 layers and multiple input texts.
 
 ## Team Contributions
 
-- [Fill in with your team's names and specific roles — e.g., instrumentation, dashboard, animation, documentation]
+1. Nitika-Explainer Model implementation using Manim library
+2. Shubhangi-Testing and presentation
+3. Anushka- Documentation experiments and Dashboard(Microscope Tool)
+4. Ayushi- Research and analysis
 
 ## If We Had Access to a Larger BDH Model
 
