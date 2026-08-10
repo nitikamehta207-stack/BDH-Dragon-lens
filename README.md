@@ -1,118 +1,112 @@
-# BDH (Dragon Hatchling)
+# BDH Microscope — Understanding Dragon Hatchling's Internals
 
-## **Bridging the Gap Between Transformers and the Brain**
+## One Sentence Claim
 
-**BDH (Dragon Hatchling)** is a biologically inspired large language model architecture that connects principles of deep learning with the foundations of neuroscience. Developed by researchers at [Pathway](https://pathway.com), BDH provides a theoretical and practical framework for understanding the emergence of reasoning and generalization in artificial systems.
+An interactive dashboard and animated explainer that measures BDH's sparse, brain-inspired gating mechanism in real time, verifying that multiplicative gating pushes sparsity from ~50% to ~75% — consistent with Pathway's published claims about brain-like sparse activity.
 
-This repository contains the official implementation from the paper:
-> *A. Kosowski, P. Uznański, J. Chorowski, Z. Stamirowska, M. Bartoszkiewicz.*
-> [_The Dragon Hatchling: The Missing Link between the Transformer and Models of the Brain_](https://doi.org/10.48550/arXiv.2509.26507), arXiv (2025).
+## Problem / Research Question
 
+BDH (Dragon Hatchling) is a newly released, brain-inspired alternative to the Transformer architecture. Because it is so new, there are no accessible tools that let a non-expert see *what's actually happening inside* the model, or connect its behavior back to the neuroscience principles it claims to be inspired by.
 
-## Overview
-
-BDH represents a **scale-free, locally interacting network of neurons** capable of intrinsic reasoning dynamics. BDH scales like a Transformer on performance benchmarks—yet retains full interpretability and theoretical grounding in the fine-grained dynamics of neuron interactions.
-
-**Key properties:**
-
-- **Scale-free network topology** mimicking biological connectivity
-- **Locally interacting neuron particles** with excitatory/inhibitory dynamics
-- **Hebbian working memory** based on synaptic plasticity, displaying monosemanticity
-- **GPU-friendly state-space formulation** for efficient implementation
-- **Interpretable activations** that are sparse and positive
-
-BDH formalizes a bridge between **neural computation and machine-based language understanding**. It shows how **macro reasoning behavior** in large AI models emerges from **micro-level neuron dynamics**, guided by principles of graph theory and local computation.
-
-Empirically, BDH matches **GPT-2–scale Transformers** across language and translation tasks at equivalent parameter scales (10M–1B).
-
-
-***
+**Our question:** Can we build a tool that (1) measures BDH's internal sparsity and gating behavior directly from the public source code, and (2) explains *why it matters* — in brain-science terms — to someone without a deep learning background?
 
 ## Architecture
 
-<img src="figs/architecture.png" width="600"/>
+```
+User Input (text)
+      │
+      ▼
+BDHInstrumented (modified bdh.py — captures activations at every layer)
+      │
+      ├──► analyze_sparsity.py ──► results/sparsity_results.csv
+      │
+      └──► Streamlit Dashboard (dashboard/app.py)
+              ├─ Section 0: Brain-like (sparse) vs Transformer (dense) network comparison
+              ├─ Section 1: BDH attention vs normal attention (no softmax, Q=K constraint)
+              ├─ Section 2: Live sparsity measurement (user types text, sees real-time graph)
+              └─ Section 3: Layer-by-layer attention pattern explorer
 
-***
-
-## Relation to Transformers
-
-<img src="figs/vocab.png" width="600"/>
-
-BDH and the Transformer share attention-inspired computation; however, BDH’s graph-based architecture makes its attention **emerge naturally from neuron-level interactions**, reflecting attention as seen in biological systems.
-
-***
-
-## Scaling Laws
-
-<img src="figs/bdh_scaling.png" width="600"/>
-
-BDH follows **Transformer-like scaling laws**, maintaining parameter efficiency while achieving interpretability at any scale.
-
-***
-
-## Latest research update: Sudoku Benchmark
-
-Note: The Sudoku Extreme result refers to Pathway’s internal BDH implementation, not to the current open-source repository. This repository contains the implementation of the baseline variant as described in our [public paper](https://arxiv.org/abs/2509.26507) and does not reproduce the 97.4% benchmark result out of the box. See the dedicated Extreme Sudoku research blog post for additional benchmark context and the reported results.
-
-On Sudoku Extreme, BDH reaches 97.4% accuracy across roughly 250,000 difficult puzzles, without chain-of-thought, solution backtracking, or external tool use, while leading LLMs struggle to perform on the benchmark at all.
-
-Language is not enough for intelligence. Transformers process information token by token with limited internal state, which makes search-heavy, non-linguistic reasoning tasks like Sudoku awkward. BDH uses a larger latent reasoning space with intrinsic memory that supports learning and adaptation during use.
-
-We believe that the future of AI will belong to systems that can reason natively across domains, that can hold multiple possibilities in a rich latent space, and that can converge on solutions without needing to verbalize every step. BDH is our answer to that challenge. It is designed to be a universal reasoning system that can speak our language without being trapped inside it. And yes, it solves Sudoku.
-
-Read more: [Post-transformers: Sudoku Bench](https://pathway.com/research/beyond-transformers-sudoku-bench)
-
-### Performance Comparison
-
-| Model | Sudoku Extreme Accuracy | Relative Cost |
-|------|------------------------|--------------|
-| Pathway BDH | 97.4% | 10× lower, No chain-of-thought |
-| Leading LLMs (O3-mini, DeepSeek R1, Claude 3.7 8K) | ~0% | High (chain-of-thought) |
-
-*Table 1: Performance comparison on extreme Sudoku benchmarks (~250,000 difficult puzzles).*  
-*Source: Pathway internal data and https://arxiv.org/pdf/2506.21734 for the Leading LLMs’ accuracy score. Pathway’s approach reflects top-1 accuracy and does not rely on chain-of-thought nor solution backtracking.*
-
-
-## Installation and Training
-
-```bash
-# install dependencies
-pip install -r requirements.txt
-
-# train BDH on a toy dataset
-python train.py
+Manim Animation (manim_animation / dashboard/animations)
+      └─ 5-scene explainer video connecting brain neuroscience to BDH's gating mechanism
 ```
 
-<!--For visualization and interpretability analysis, explore the example notebooks in `notebooks/`.-->
+## How to Run
 
+```bash
+# 1. Clone this repo and enter it
+git clone <this-repo-url>
+cd bdh
 
+# 2. Install dependencies
+pip install -r requirements.txt
+pip install streamlit plotly pandas
 
-## Learn and Discuss
+# 3. Run the sparsity analysis (verifies instrumentation works)
+cd experiments
+python analyze_sparsity.py
 
-- Watch the *SuperDataScience podcast* [▶️ *Dragon Hatchling: The Missing Link Between Transformers and the Brain*](https://www.youtube.com/watch?v=mfV44-mtg7c) (72 min.) featuring Adrian Kosowski in conversation with Jon Krohn, unpacking BDH’s neuron-level architecture and sparse reasoning dynamics.
+# 4. Launch the interactive dashboard
+cd ../dashboard
+python -m streamlit run app.py
+```
 
-- Read about BDH in
-[*Forbes*](https://www.forbes.com/sites/victordey/2025/10/08/can-ai-learn-and-evolve-like-a-brain-pathways-bold-research-thinks-so/),
-[*Semafor*](https://www.semafor.com/article/10/01/2025/new-ai-research-claims-to-be-getting-closer-to-modeling-human-brain),
-[*The Turing Post*](https://www.turingpost.com/p/fod-121-300-million-to-start-a-big-promise-for-science#the-freshest-research-papers-catego),
-[*Quantum Zeitgeist*](https://quantumzeitgeist.com/palo-alto-ai-firm-pathway-unveils-post-transformer-architecture-for-autonomous-ai/),
-[*Golem*](https://www.golem.de/news/neue-ki-architektur-was-ist-baby-dragon-hatchling-2510-201047-2.html),
-and elsewhere in the media.
+The dashboard opens automatically in your browser at `http://localhost:8501`.
 
-- Discuss and share the BDH paper on:
-[*Hugging Face Papers*](https://huggingface.co/papers/2509.26507), 
-[*Alphaxiv*](https://alphaxiv.org/abs/2509.26507),
-and [*EmergentMind*](https://emergentmind.com/papers/2509.26507).
+**To reproduce the animation** (requires Manim — recommended via Google Colab, see `manim_animation/bdh_explainer.py` header for full instructions):
+```python
+%manim -qh BDHExplainer
+```
 
-## Community Projects
+## Proof
 
-- [adamskrodzki/bdh](https://github.com/adamskrodzki/bdh): dynamic vocabulary, stateful attention
-- [mosure/burn_dragon_hatchling](https://github.com/mosure/burn_dragon_hatchling): Burn port
-- [severian42/bdh](https://github.com/severian42/bdh): MLX port
-- [Git-Faisal/bdh](https://github.com/Git-Faisal/bdh)
-- [GrahLnn/bdh](https://github.com/GrahLnn/bdh)
+- **Live sparsity measurements:** `results/sparsity_results.csv` — sparsity % for every layer (0–5), for both individual signals (`x_sparse`, `y_sparse`) and their gated product (`xy_sparse`)
+- **Interactive dashboard:** `dashboard/app.py` — lets anyone type their own text and see the same measurement live
+- **Animated explainer:** `results/demo/BDHExplainer.mp4` — 5-scene video connecting brain science to BDH's design
+- **Screenshots:** `results/` (dashboard screenshots)
 
-## Acknowledgements
-We thank Andrej Karpathy for the [nanoGPT](https://github.com/karpathy/nanoGPT/) code and the tiny Shapespeare dataset used in this demonstration.
+### Key Measured Result
 
-BDH research stands at the intersection of **AI architecture**, **biological learning models**, and **theoretical computer science**—an effort to map the *equations of reasoning* between artificial and biological intelligence.
+| Stage | Average Sparsity |
+|---|---|
+| `x_sparse` (after first ReLU) | ~50% |
+| `y_sparse` (after attention + second ReLU) | ~51% |
+| `xy_sparse` (after gating — multiplying the two) | **~75%** |
+
+This pattern was consistent across all 6 layers and multiple input texts.
+
+## Research Labels
+
+- 🟦 **ESTABLISHED** (from Pathway's paper/code, verified by reading `bdh.py` directly):
+  - BDH attention has no softmax normalization step and enforces a Q=K constraint (`assert K is Q` in `Attention.forward()`), unlike standard Transformer attention.
+  - The same encoder/attention/decoder weights are reused across all 6 layers (`for level in range(C.n_layer)` loop reuses `self.encoder`, `self.attn`, `self.decoder` every iteration) — matching the paper's "shared parameters across layers" claim.
+  - BDH is explicitly designed around brain-inspired principles: local interaction, sparse activity, and Hebbian-style memory (per the BDH README and explainer).
+
+- 🟩 **MEASURED** (observed directly by us, via `bdh_instrumented.py`):
+  - On an untrained (random-weight) model, gating (`x_sparse * y_sparse`) produces ~75% sparsity — significantly higher than either individual component (~50%). This pattern held consistently across all 6 layers and several different input texts.
+
+- 🟨 **EXPLORATORY** (our hypothesis, not yet statistically verified):
+  - We hypothesize that this gating-amplified sparsity effect would be even more pronounced in a trained model, where the paper's "predictability-linked activity" claim (activity gets quieter as input becomes more predictable) should become measurable. We were not able to fully train the model within the hackathon timeframe to test this directly.
+
+## Limitations
+
+- All measurements in this submission were taken on an **untrained (random-weight) model** due to hackathon time constraints. The paper's core claims (monosemantic synapses, predictability-linked activity) are best observed in substantially trained models — our results confirm the *architectural* sparsity behavior (which is present even untrained, since it comes from ReLU + gating structure), but do not yet confirm the *learned* interpretability claims.
+- The brain-like vs dense-Transformer network visualization (Section 0 of the dashboard) is an **illustrative diagram**, not a live measurement — the connection counts (12 vs 45) are chosen for teaching clarity, not derived from BDH's actual internal connectivity graph.
+- We tested on short English text samples only; we have not evaluated multilingual or long-context behavior.
+
+## Team Contributions
+
+- [Fill in with your team's names and specific roles — e.g., instrumentation, dashboard, animation, documentation]
+
+## If We Had Access to a Larger BDH Model
+
+We would run the same `bdh_instrumented.py` pipeline against a substantially trained, larger BDH checkpoint and compare:
+- **Metric:** Layer-wise sparsity (`x_sparse`, `y_sparse`, `xy_sparse` percentages), exactly as measured in this repo
+- **Comparison:** Untrained (this submission) vs trained, and small vs large parameter count
+- **Hypothesis to test:** That sparsity becomes more *input-dependent* in trained/larger models (i.e., more predictable inputs produce measurably quieter activity, per Pathway's "predictability-linked activity" claim) — something that is architecturally impossible to observe in an untrained model regardless of size.
+
+## Technology / Research Anchor
+
+- **BDH source:** `bdh.py`, cloned from Pathway's public repository (github.com/pathwaycom/bdh), used unmodified in `bdh_core/`
+- **Instrumentation:** `experiments/bdh_instrumented.py` — a copy of `bdh.py` with activation-capture added inside the forward loop (no hooks needed, since the sparse tensors are local variables, not module outputs)
+- **Dashboard:** Streamlit + Plotly
+- **Animation:** Manim Community Edition (rendered via Google Colab)
