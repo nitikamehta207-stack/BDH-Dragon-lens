@@ -1,288 +1,875 @@
 """
-BDH Microscope Dashboard
-=========================
-This dashboard has 3 sections:
-1. Explainer - How BDH attention differs from normal attention
-2. Live Microscope - User types text, sees real-time activations
-3. Layer-by-Layer Story - Slider to explore gating/sparsity patterns
+🐉 DRAGONLENS
+BDH Explainer + Microscope
 
-To run: streamlit run app.py
+DragonForge prototype:
+1. 🧠 Explainer
+2. 🔬 Microscope
+3. 📊 Layer-by-Layer inspection
+
+NOTE:
+The current BDH model uses untrained/random weights.
+Therefore numerical activation results are prototype measurements,
+not results from a trained BDH checkpoint.
 """
 
-import streamlit as st
-import torch
+import os
+import sys
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import sys
-import os
+import streamlit as st
+import torch
 
-# experiments folder ka path add karo taaki bdh_instrumented import ho sake
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'experiments'))
+
+# ============================================================
+# PATH SETUP
+# ============================================================
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+EXPERIMENTS_DIR = os.path.join(CURRENT_DIR, "..", "experiments")
+RESULTS_DIR = os.path.join(CURRENT_DIR, "..", "results")
+
+sys.path.insert(0, os.path.abspath(EXPERIMENTS_DIR))
+
 from bdh_instrumented import BDHInstrumented, BDHConfig
+
 
 # ============================================================
 # PAGE CONFIG
 # ============================================================
-st.set_page_config(page_title="BDH Microscope", layout="wide")
-st.title("🔬 BDH Microscope")
-st.caption("Understanding Dragon Hatchling's internals — DragonForge Submission")
+
+st.set_page_config(
+    page_title="DragonLens — BDH Interpretability",
+    page_icon="🐉",
+    layout="wide",
+)
+
 
 # ============================================================
-# LOAD MODEL (once, cached - avoids reloading on every interaction)
+# HEADER
 # ============================================================
+
+st.title("🐉 DragonLens")
+
+st.subheader("BDH Interpretability & Educational Prototype")
+
+st.markdown(
+    """
+    **Understand → Explore → Inspect**
+
+    DragonLens combines a conceptual explanation of BDH with an
+    interactive microscope for inspecting its internal activations.
+    """
+)
+
+st.divider()
+
+
+# ============================================================
+# LOAD MODEL
+# ============================================================
+
 @st.cache_resource
 def load_model():
-    config = BDHConfig()  # default settings
+
+    config = BDHConfig()
+
     model = BDHInstrumented(config)
+
     model.eval()
+
     return model, config
+
 
 model, config = load_model()
 
-# ============================================================
-# SECTION 0: BRAIN ANALOGY — Sparse Local Network vs Dense Global Network
-# ============================================================
-st.header("0️⃣ The Brain Analogy")
-st.markdown("""
-**In plain terms:** Real neurons in your brain mostly talk to their nearby neighbors —
-a **sparse, local** network. Standard AI models (Transformers) work differently: every
-word attends to every other word, no matter how far apart — a **dense, global** network.
-BDH is designed to copy the brain's approach. Toggle below to see the difference.
-""")
-
-import random
-
-# Fixed neuron positions (inside a simple brain-shaped outline)
-neuron_positions = [
-    (0.32, 0.37), (0.44, 0.26), (0.56, 0.29), (0.66, 0.39), (0.68, 0.58),
-    (0.59, 0.71), (0.47, 0.76), (0.37, 0.68), (0.44, 0.50), (0.56, 0.53),
-]
-
-# Sparse (brain-like): each neuron connects only to its nearby neighbors
-sparse_edges = [(0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,0),(0,8),(8,9),(9,3),(8,2)]
-
-# Dense (transformer-like): every neuron connects to every other neuron
-dense_edges = [(i, j) for i in range(len(neuron_positions)) for j in range(i+1, len(neuron_positions))]
-
-network_mode = st.radio(
-    "Choose network type:",
-    ["Brain-like (BDH) — sparse, local", "Transformer — dense, global"],
-    horizontal=True,
-)
-
-is_sparse = network_mode.startswith("Brain-like")
-edges = sparse_edges if is_sparse else dense_edges
-edge_color = "#0F6E56" if is_sparse else "#D85A30"
-node_color = "#0F6E56" if is_sparse else "#D85A30"
-
-fig_brain = go.Figure()
-
-# Draw edges (connections between neurons)
-for a, b in edges:
-    x0, y0 = neuron_positions[a]
-    x1, y1 = neuron_positions[b]
-    fig_brain.add_trace(go.Scatter(
-        x=[x0, x1], y=[y0, y1],
-        mode='lines',
-        line=dict(color=edge_color, width=1.5 if is_sparse else 0.5),
-        opacity=0.7 if is_sparse else 0.25,
-        showlegend=False,
-        hoverinfo='skip',
-    ))
-
-# Draw neurons (dots)
-xs = [p[0] for p in neuron_positions]
-ys = [p[1] for p in neuron_positions]
-fig_brain.add_trace(go.Scatter(
-    x=xs, y=ys,
-    mode='markers',
-    marker=dict(size=18, color=node_color),
-    showlegend=False,
-    hoverinfo='skip',
-))
-
-fig_brain.update_layout(
-    height=350,
-    xaxis=dict(visible=False, range=[0.15, 0.85]),
-    yaxis=dict(visible=False, range=[0.15, 0.85], scaleanchor="x"),
-    margin=dict(l=10, r=10, t=10, b=10),
-    plot_bgcolor='rgba(0,0,0,0)',
-    paper_bgcolor='rgba(0,0,0,0)',
-)
-
-st.plotly_chart(fig_brain, use_container_width=True)
-
-if is_sparse:
-    st.success(f"🧠 **{len(edges)} connections** — neurons only talk to nearby neighbors, just like real brain tissue. This is what BDH is designed to mimic.")
-else:
-    st.warning(f"🌐 **{len(edges)} connections** — every neuron talks to every other neuron, regardless of distance. This is how standard Transformer attention works — powerful, but expensive.")
-
-st.divider()
 
 # ============================================================
-# SECTION 1: EXPLAINER — Normal Attention vs BDH Attention
+# HELPER FUNCTIONS
 # ============================================================
-st.header("1️⃣ What Makes BDH Different")
 
-st.markdown("""
-**In plain terms:** When a normal AI model (like ChatGPT) decides which earlier words matter,
-it makes every word "vote" on importance, then normalizes those votes into probabilities
-(this step is called *softmax*). BDH skips the voting step entirely — it lets signals pass
-through more directly, similar to how neurons in a brain send signals to each other without
-a central "normalizer."
-""")
+def sparsity_pct(tensor):
+    """
+    Percentage of values that are exactly zero.
+    """
 
-col1, col2 = st.columns(2)
+    total = tensor.numel()
 
-with col1:
-    st.subheader("🔵 Normal Transformer")
-    st.markdown("Every word looks at every other word, then the model **normalizes** how much attention to pay to each (softmax = 'turn scores into percentages that add up to 100%').")
-    with st.expander("See the actual math"):
-        st.code("""
-scores = Q @ K.T
-scores = softmax(scores)   # normalizes into probabilities
-output = scores @ V
-        """, language="python")
+    if total == 0:
+        return 0.0
 
-with col2:
-    st.subheader("🟢 BDH Attention")
-    st.markdown("Query and Key are **forced to be identical** (Q=K), and there's **no normalization step**. Signals pass through directly — closer to how brain synapses work.")
-    with st.expander("See the actual math"):
-        st.code("""
-assert K is Q               # Q and K are the SAME tensor!
-scores = QR @ KR.T
-scores = scores.tril(-1)    # causal mask only, no softmax
-output = scores @ V
-        """, language="python")
+    zeros = (tensor == 0).sum().item()
 
-st.info("💡 **ESTABLISHED (from paper/code):** BDH attention skips softmax and enforces a Q=K constraint — a fundamental departure from standard Transformer attention. We verified this by reading `bdh.py` directly (see `Attention.forward()`).")
+    return round((zeros / total) * 100, 2)
 
-st.divider()
 
-# ============================================================
-# SECTION 2: LIVE MICROSCOPE — User Input Se Real-time Activations
-# ============================================================
-st.header("2️⃣ Live Microscope")
-st.markdown("""
-**In plain terms:** As your text flows through BDH's 6 layers, a large fraction of the model's
-internal "neurons" switch off (become exactly zero) at each step. This is called **sparsity** —
-think of it as the model being *selective*, keeping only the signals that matter and silencing
-the rest. Type something below to measure it live.
-""")
+def tensor_stats(tensor):
 
-user_text = st.text_input("Enter text:", value="BDH is a post-transformer architecture")
+    return {
+        "Shape": str(tuple(tensor.shape)),
+        "Total values": tensor.numel(),
+        "Active (>0)": int((tensor > 0).sum().item()),
+        "Zero values": int((tensor == 0).sum().item()),
+        "Sparsity": f"{sparsity_pct(tensor)}%",
+        "Maximum": round(tensor.max().item(), 5),
+        "Mean": round(tensor.mean().item(), 5),
+    }
 
-if user_text:
-    # Convert text to bytes (BDH is byte-level)
-    sample_bytes = list(user_text.encode('utf-8'))
-    idx = torch.tensor([sample_bytes])
+
+def run_model(text):
+
+    """
+    Convert text to byte-level tokens and run the
+    instrumented BDH model.
+    """
+
+    sample_bytes = list(text.encode("utf-8"))
+
+    # Keep values inside byte vocabulary [0,255]
+    sample_bytes = [b % 256 for b in sample_bytes]
+
+    idx = torch.tensor([sample_bytes], dtype=torch.long)
 
     with torch.no_grad():
+
         logits, loss = model(idx)
 
-    # Compute sparsity for each level
-    sparsity_data = []
-    for layer_data in model.captured_activations:
-        level = layer_data['level']
-        x_sparse = layer_data['x_sparse']
-        y_sparse = layer_data['y_sparse']
-        xy_sparse = layer_data['xy_sparse']
+    return idx, logits
 
-        def sparsity_pct(t):
-            return round(((t == 0).sum().item() / t.numel()) * 100, 2)
 
-        sparsity_data.append({
-            'Level': level,
-            'x_sparse (%)': sparsity_pct(x_sparse),
-            'y_sparse (%)': sparsity_pct(y_sparse),
-            'xy_sparse gated (%)': sparsity_pct(xy_sparse),
-        })
+# ============================================================
+# TABS
+# ============================================================
 
-    df = pd.DataFrame(sparsity_data)
-    avg_gated = df['xy_sparse gated (%)'].mean()
-    avg_x = df['x_sparse (%)'].mean()
+explainer_tab, microscope_tab = st.tabs(
+    [
+        "🧠 EXPLAINER",
+        "🔬 MICROSCOPE",
+    ]
+)
 
-    col1, col2 = st.columns([2, 1])
+
+# ============================================================
+# TAB 1 — EXPLAINER
+# ============================================================
+
+with explainer_tab:
+
+    st.header("🧠 Understanding BDH")
+
+    st.markdown(
+        """
+        This section gives the intuition behind the DragonForge prototype.
+
+        The brain is used here as an **educational analogy** for selective
+        and sparse computation. It should not be interpreted as claiming
+        that BDH reproduces biological neural connectivity.
+        """
+    )
+
+    # --------------------------------------------------------
+    # BRAIN ANALOGY
+    # --------------------------------------------------------
+
+    st.subheader("1️⃣ Brain-like vs Dense Computation")
+
+    neuron_positions = [
+        (0.32, 0.37),
+        (0.44, 0.26),
+        (0.56, 0.29),
+        (0.66, 0.39),
+        (0.68, 0.58),
+        (0.59, 0.71),
+        (0.47, 0.76),
+        (0.37, 0.68),
+        (0.44, 0.50),
+        (0.56, 0.53),
+    ]
+
+    sparse_edges = [
+        (0, 1),
+        (1, 2),
+        (2, 3),
+        (3, 4),
+        (4, 5),
+        (5, 6),
+        (6, 7),
+        (7, 0),
+        (0, 8),
+        (8, 9),
+        (9, 3),
+        (8, 2),
+    ]
+
+    dense_edges = [
+        (i, j)
+        for i in range(len(neuron_positions))
+        for j in range(i + 1, len(neuron_positions))
+    ]
+
+    network_mode = st.radio(
+        "Choose a network:",
+        [
+            "Brain-like / sparse",
+            "Dense / global",
+        ],
+        horizontal=True,
+    )
+
+    is_sparse = network_mode == "Brain-like / sparse"
+
+    edges = sparse_edges if is_sparse else dense_edges
+
+    edge_color = "#0F6E56" if is_sparse else "#D85A30"
+    node_color = "#0F6E56" if is_sparse else "#D85A30"
+
+    fig_brain = go.Figure()
+
+    # Draw connections
+    for a, b in edges:
+
+        x0, y0 = neuron_positions[a]
+        x1, y1 = neuron_positions[b]
+
+        fig_brain.add_trace(
+            go.Scatter(
+                x=[x0, x1],
+                y=[y0, y1],
+                mode="lines",
+                line=dict(
+                    color=edge_color,
+                    width=1.5 if is_sparse else 0.5,
+                ),
+                opacity=0.7 if is_sparse else 0.25,
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+
+    # Draw neurons
+    xs = [p[0] for p in neuron_positions]
+    ys = [p[1] for p in neuron_positions]
+
+    fig_brain.add_trace(
+        go.Scatter(
+            x=xs,
+            y=ys,
+            mode="markers",
+            marker=dict(
+                size=18,
+                color=node_color,
+            ),
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+
+    fig_brain.update_layout(
+        height=350,
+        xaxis=dict(
+            visible=False,
+            range=[0.15, 0.85],
+        ),
+        yaxis=dict(
+            visible=False,
+            range=[0.15, 0.85],
+            scaleanchor="x",
+        ),
+        margin=dict(
+            l=10,
+            r=10,
+            t=10,
+            b=10,
+        ),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+
+    st.plotly_chart(
+        fig_brain,
+        use_container_width=True,
+    )
+
+    if is_sparse:
+
+        st.success(
+            f"""
+            🧠 **{len(edges)} connections**
+
+            The diagram illustrates the idea of selective/sparse
+            connectivity as an educational analogy.
+            """
+        )
+
+    else:
+
+        st.warning(
+            f"""
+            🌐 **{len(edges)} connections**
+
+            The diagram illustrates a dense connectivity pattern
+            where many possible pairs are connected.
+            """
+        )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # ATTENTION EXPLANATION
+    # --------------------------------------------------------
+
+    st.subheader("2️⃣ Normal Attention vs BDH Attention")
+
+    col1, col2 = st.columns(2)
+
     with col1:
-        fig = px.line(df, x='Level', y=['x_sparse (%)', 'y_sparse (%)', 'xy_sparse gated (%)'],
-                      title="Sparsity Across Layers", markers=True)
-        fig.update_layout(yaxis_title="% of neurons switched OFF", xaxis_title="Layer (Level)")
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption("📖 **How to read this:** Higher = more neurons are 'off' (zero) at that stage. "
-                   "The pink line (xy_sparse) is what's left AFTER the model combines two signals together (called 'gating').")
+
+        st.markdown("### 🔵 Normal Transformer")
+
+        st.markdown(
+            """
+            A standard attention mechanism typically computes
+            query-key scores and then normalizes those scores.
+            """
+        )
+
+        with st.expander("See simplified math"):
+
+            st.code(
+                """
+scores = Q @ K.T
+attention = softmax(scores)
+output = attention @ V
+                """,
+                language="python",
+            )
 
     with col2:
-        st.dataframe(df, use_container_width=True)
 
-    st.success(f"""
-✅ **MEASURED — So what does this mean?**
-Before combining signals, about **{avg_x:.0f}%** of neurons are already off.
-After the model *gates* (combines) two signals together, that jumps to **{avg_gated:.0f}%** —
-meaning only about **1 in 4 neurons stays active**. In plain terms: BDH's gating mechanism acts
-like a strict filter, letting through only the most important information at each layer.
-""")
+        st.markdown("### 🟢 BDH")
+
+        st.markdown(
+            """
+            In the implementation used by this prototype, Q and K
+            are the same tensor and the attention calculation does
+            not apply a softmax.
+            """
+        )
+
+        with st.expander("See BDH code idea"):
+
+            st.code(
+                """
+assert K is Q
+
+scores = QR @ KR.T
+scores = scores.tril(diagonal=-1)
+
+output = scores @ V
+                """,
+                language="python",
+            )
+
+    st.info(
+        "💡 The attention explanation above describes the implementation "
+        "used in the BDH code connected to this prototype."
+    )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # BDH PIPELINE
+    # --------------------------------------------------------
+
+    st.subheader("3️⃣ BDH Processing Pipeline")
+
+    st.markdown(
+        """
+        ### Input
+        ↓
+        ### Embedding
+        ↓
+        ### Encoder
+        ↓
+        ### ReLU → Sparse representation
+        ↓
+        ### Attention
+        ↓
+        ### Second encoder + ReLU
+        ↓
+        ### Gating
+        ↓
+        ### Decoder
+        ↓
+        ### Next BDH layer
+        """
+    )
+
+    st.divider()
+
+    # --------------------------------------------------------
+    # EXISTING MANIM VIDEO
+    # --------------------------------------------------------
+
+    st.subheader("🎬 BDH Explainer Animation")
+
+    video_path = os.path.join(
+        RESULTS_DIR,
+        "demo",
+        "BDHExplainer.mp4",
+    )
+
+    if os.path.exists(video_path):
+
+        with open(video_path, "rb") as video_file:
+
+            video_bytes = video_file.read()
+
+        st.video(video_bytes)
+
+        st.caption(
+            "BDH explainer animation generated for the DragonForge prototype."
+        )
+
+    else:
+
+        st.warning(
+            "BDHExplainer.mp4 was not found in results/demo/."
+        )
+
+
+# ============================================================
+# TAB 2 — MICROSCOPE
+# ============================================================
+
+with microscope_tab:
+
+    st.header("🔬 BDH Microscope")
+
+    st.markdown(
+        """
+        The Microscope lets you send text through the instrumented
+        BDH implementation and inspect the intermediate representations
+        captured from each layer.
+        """
+    )
+
+    st.info(
+        "⚠️ Prototype note: the current model uses untrained/random "
+        "weights. The measurements below demonstrate the instrumentation "
+        "and visualization pipeline rather than trained-model behavior."
+    )
+
+    # --------------------------------------------------------
+    # INPUT
+    # --------------------------------------------------------
+
+    user_text = st.text_input(
+        "Enter text to inspect:",
+        value="BDH is a post-transformer architecture",
+    )
+
+    inspect_button = st.button(
+        "🔬 Inspect BDH",
+        type="primary",
+    )
+
+    if inspect_button and user_text:
+
+        idx, logits = run_model(user_text)
+
+        st.success(
+            f"Model executed successfully on {len(user_text)} characters."
+        )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # BASIC MODEL INFORMATION
+        # ----------------------------------------------------
+
+        st.subheader("📌 Input Information")
+
+        c1, c2, c3, c4 = st.columns(4)
+
+        c1.metric(
+            "Characters",
+            len(user_text),
+        )
+
+        c2.metric(
+            "Bytes",
+            idx.shape[1],
+        )
+
+        c3.metric(
+            "BDH Layers",
+            config.n_layer,
+        )
+
+        c4.metric(
+            "Heads",
+            config.n_head,
+        )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # COLLECT SPARSITY
+        # ----------------------------------------------------
+
+        sparsity_data = []
+
+        for layer_data in model.captured_activations:
+
+            level = layer_data["level"]
+
+            x_sparse = layer_data["x_sparse"]
+            y_sparse = layer_data["y_sparse"]
+            xy_sparse = layer_data["xy_sparse"]
+
+            sparsity_data.append(
+                {
+                    "Layer": level + 1,
+                    "x_sparse (%)": sparsity_pct(x_sparse),
+                    "y_sparse (%)": sparsity_pct(y_sparse),
+                    "xy_sparse (%)": sparsity_pct(xy_sparse),
+                }
+            )
+
+        df = pd.DataFrame(sparsity_data)
+
+        # ----------------------------------------------------
+        # SUMMARY
+        # ----------------------------------------------------
+
+        st.subheader("📊 Sparsity Summary")
+
+        avg_x = df["x_sparse (%)"].mean()
+        avg_y = df["y_sparse (%)"].mean()
+        avg_xy = df["xy_sparse (%)"].mean()
+
+        c1, c2, c3 = st.columns(3)
+
+        c1.metric(
+            "Average x_sparse",
+            f"{avg_x:.2f}%",
+        )
+
+        c2.metric(
+            "Average y_sparse",
+            f"{avg_y:.2f}%",
+        )
+
+        c3.metric(
+            "Average gated",
+            f"{avg_xy:.2f}%",
+        )
+
+        # ----------------------------------------------------
+        # GRAPH
+        # ----------------------------------------------------
+
+        st.subheader("📈 Sparsity Across BDH Layers")
+
+        fig = px.line(
+            df,
+            x="Layer",
+            y=[
+                "x_sparse (%)",
+                "y_sparse (%)",
+                "xy_sparse (%)",
+            ],
+            markers=True,
+            title="Internal Sparsity Across Layers",
+        )
+
+        fig.update_layout(
+            yaxis_title="Zero-valued activations (%)",
+            xaxis_title="BDH Layer",
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
+
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # LAYER INSPECTOR
+        # ----------------------------------------------------
+
+        st.subheader("🔎 Layer Inspector")
+
+        selected_layer = st.slider(
+            "Select BDH Layer",
+            min_value=1,
+            max_value=config.n_layer,
+            value=1,
+        )
+
+        layer_data = model.captured_activations[
+            selected_layer - 1
+        ]
+
+        x_sparse = layer_data["x_sparse"]
+        y_sparse = layer_data["y_sparse"]
+        xy_sparse = layer_data["xy_sparse"]
+        attention_output = layer_data["attention_output"]
+
+        # ----------------------------------------------------
+        # LAYER METRICS
+        # ----------------------------------------------------
+
+        st.markdown(
+            f"### Layer {selected_layer}"
+        )
+
+        c1, c2, c3 = st.columns(3)
+
+        c1.metric(
+            "x_sparse sparsity",
+            f"{sparsity_pct(x_sparse):.2f}%",
+        )
+
+        c2.metric(
+            "y_sparse sparsity",
+            f"{sparsity_pct(y_sparse):.2f}%",
+        )
+
+        c3.metric(
+            "Gated sparsity",
+            f"{sparsity_pct(xy_sparse):.2f}%",
+        )
+
+        # ----------------------------------------------------
+        # TENSOR INFORMATION
+        # ----------------------------------------------------
+
+        st.subheader("🧮 Tensor Information")
+
+        tensor_info = pd.DataFrame(
+            [
+                {
+                    "Tensor": "x_sparse",
+                    **tensor_stats(x_sparse),
+                },
+                {
+                    "Tensor": "y_sparse",
+                    **tensor_stats(y_sparse),
+                },
+                {
+                    "Tensor": "xy_sparse",
+                    **tensor_stats(xy_sparse),
+                },
+            ]
+        )
+
+        st.dataframe(
+            tensor_info,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        # ----------------------------------------------------
+        # ACTIVATION HEATMAP
+        # ----------------------------------------------------
+
+        st.subheader("🔥 Activation Heatmap")
+
+        st.markdown(
+            """
+            The heatmap shows a small slice of the internal activation
+            tensor so that the representation can be visually inspected.
+            """
+        )
+
+        # x_sparse shape:
+        # [batch, heads, tokens, N]
+
+        x_visual = x_sparse[0]
+
+        # Average across heads
+        x_visual = x_visual.mean(dim=0)
+
+        # Limit display to first 64 features
+        x_visual = x_visual[:, :64].cpu().numpy()
+
+        fig_heatmap = px.imshow(
+            x_visual,
+            aspect="auto",
+            title=f"x_sparse — Layer {selected_layer}",
+            labels={
+                "x": "Feature",
+                "y": "Token position",
+                "color": "Activation",
+            },
+            color_continuous_scale="Blues",
+        )
+
+        st.plotly_chart(
+            fig_heatmap,
+            use_container_width=True,
+        )
+
+        # ----------------------------------------------------
+        # BEFORE / AFTER RELU
+        # ----------------------------------------------------
+
+        st.subheader("⚡ Sparse Representation")
+
+        before_relu = x_sparse.detach().flatten()
+
+        # Show a manageable sample
+        sample_size = min(
+            100,
+            before_relu.numel(),
+        )
+
+        sample = before_relu[:sample_size].cpu().numpy()
+
+        activation_df = pd.DataFrame(
+            {
+                "Feature": range(sample_size),
+                "Activation": sample,
+            }
+        )
+
+        fig_activation = px.bar(
+            activation_df,
+            x="Feature",
+            y="Activation",
+            title="Sample of Sparse Activations",
+        )
+
+        st.plotly_chart(
+            fig_activation,
+            use_container_width=True,
+        )
+
+        # ----------------------------------------------------
+        # ATTENTION OUTPUT
+        # ----------------------------------------------------
+
+        st.subheader("🧠 Attention Output")
+
+        attn = attention_output[0]
+
+        # Average across attention heads
+        attn_avg = attn.mean(dim=0)
+
+        # Show first 20 features
+        attn_visual = (
+            attn_avg[:, :20]
+            .detach()
+            .cpu()
+            .numpy()
+        )
+
+        fig_attn = px.imshow(
+            attn_visual,
+            aspect="auto",
+            title=f"Attention Output — Layer {selected_layer}",
+            labels={
+                "x": "Internal feature",
+                "y": "Token position",
+                "color": "Activation",
+            },
+            color_continuous_scale="Viridis",
+        )
+
+        st.plotly_chart(
+            fig_attn,
+            use_container_width=True,
+        )
+
+        # ----------------------------------------------------
+        # EXPLANATION
+        # ----------------------------------------------------
+
+        st.success(
+            f"""
+            🔬 **What you are seeing**
+
+            Layer {selected_layer} produced an internal sparse
+            representation. Values equal to zero correspond to
+            inactive ReLU outputs.
+
+            The Microscope measures these values directly from the
+            instrumented BDH forward pass.
+            """
+        )
+
+    else:
+
+        st.markdown(
+            """
+            ### 👋 Start the Microscope
+
+            Enter some text above and click:
+
+            **🔬 Inspect BDH**
+
+            DragonLens will then run the text through the
+            instrumented BDH model and expose its internal
+            activations.
+            """
+        )
+
+
+# ============================================================
+# RESEARCH CONTRACT
+# ============================================================
 
 st.divider()
 
-# ============================================================
-# SECTION 3: LAYER-BY-LAYER STORY — Slider Se Explore Karo
-# ============================================================
-st.header("3️⃣ Layer-by-Layer Story")
-st.markdown("""
-**In plain terms:** BDH processes your text through 6 layers, one after another — but unlike
-most AI models, it **reuses the exact same internal machinery** at every layer (like passing
-coffee through the same filter 6 times instead of using 6 different filters). Move the slider
-below to see how the signal looks at each pass.
-""")
+st.subheader("📜 Research Contract")
 
-if user_text and model.captured_activations:
-    selected_level = st.slider("Select Layer", 0, config.n_layer - 1, 0)
+col1, col2, col3 = st.columns(3)
 
-    layer_data = model.captured_activations[selected_level]
+with col1:
 
-    explanations = {
-        0: "**First pass** — the raw input hasn't been filtered yet, sparsity is moderate.",
-        config.n_layer - 1: "**Final pass** — after being filtered 6 times, the signal has been progressively 'refined' down to what matters most.",
-    }
-    default_explanation = f"**Pass {selected_level + 1} of {config.n_layer}** — the input has been through the same filter {selected_level} time(s) already."
+    st.markdown(
+        """
+        ### 🟦 ESTABLISHED
 
-    st.markdown(explanations.get(selected_level, default_explanation))
+        Claims directly supported by the BDH
+        implementation used by this prototype.
+        """
+    )
 
-    # Show attention output heatmap (averaged across heads)
-    attn_output = layer_data['attention_output']  # shape: (B, nh, T, D)
-    attn_avg = attn_output[0].mean(dim=0).numpy()  # average across heads -> (T, D)
+with col2:
 
-    st.markdown("""
-    **What am I looking at?** Each row below is one character/byte from your text (in order).
-    Each column is one of the model's internal "features." **Lighter = more active, darker = less active.**
-    Look for columns that stay consistently light or dark — those are features the model treats
-    similarly regardless of which character it's looking at, vs. columns that vary a lot row-to-row
-    (those are features that respond differently to different characters).
-    """)
+    st.markdown(
+        """
+        ### 🟩 MEASURED
 
-    fig2 = px.imshow(attn_avg[:, :20], aspect='auto',
-                      title=f"What the model 'sees' internally at Pass {selected_level + 1} (first 20 features shown)",
-                      labels=dict(x="Internal Feature #", y="Character Position in Your Text", color="Activation Strength"),
-                      color_continuous_scale="Blues")
-    st.plotly_chart(fig2, use_container_width=True)
+        Values directly measured during a
+        forward pass of the instrumented model.
+        """
+    )
 
-    st.caption("🔬 **EXPLORATORY:** We're visually inspecting this pattern ourselves — we haven't statistically "
-               "verified specific feature meanings. A trained model would let us map specific features to concepts "
-               "(this is what Pathway's paper calls 'monosemantic synapses').")
+with col3:
 
-st.divider()
+    st.markdown(
+        """
+        ### 🟨 EXPLORATORY
 
-# ============================================================
-# FOOTER — Research Contract Reminder
-# ============================================================
-st.markdown("""
----
-### Research Contract
-- 🟦 **ESTABLISHED**: Claims that come directly from Pathway's paper/code
-- 🟩 **MEASURED**: What we directly observed by testing (live in this dashboard)
-- 🟨 **EXPLORATORY**: Our own hypothesis/extension
+        Interpretations and hypotheses that
+        require further investigation.
+        """
+    )
 
-⚠️ **Note:** This model currently runs with *untrained* (random) weights. Results will be more meaningful on a
-trained model — run `train.py` and load the checkpoint to get richer insights from this dashboard.
-""")
+st.caption(
+    "🐉 DragonLens — DragonForge prototype | "
+    "BDH Interpretability & Educational Visualization"
+)
