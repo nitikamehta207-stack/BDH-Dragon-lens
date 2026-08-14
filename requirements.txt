@@ -1,6 +1,5 @@
 torch
 numpy
 streamlit
-manim
 pandas
 matplotlib
